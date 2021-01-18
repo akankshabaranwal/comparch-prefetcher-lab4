@@ -1,0 +1,195 @@
+	#include "cache.h"
+
+	#define PREFETCH_DEGREE 4
+	#define PREFETCH_LOOKAHEAD 4
+	#define NUM_ENTRIES 256
+
+	
+	class GLOBAL_HISTORY_BUFFER {
+  	public:
+    uint64_t next_ptr; // Index pointer to the previously accessed address by the same IP    
+    uint64_t addr; // The last address accessed by this IP
+
+    GLOBAL_HISTORY_BUFFER () {
+        next_ptr = -1;
+  		addr = 0;
+    	};
+	};
+
+	GLOBAL_HISTORY_BUFFER GHB[NUM_ENTRIES];
+	int front = -1, rear = -1, n=NUM_ENTRIES;
+
+	int insertToGHB(int next_ptr, int64_t addr) {
+	   if ((front == 0 && rear == n-1) || (front == rear+1)) {
+	      // Return -1 indicating that insertion to queue failed. So something needs to be deleted.
+	      return -1;
+	   }
+
+	   if (front == -1) {
+	      front = 0;
+	      rear = 0;
+
+	   } else {
+	      if (rear == n - 1)
+	      rear = 0;
+	      else
+	      rear = rear + 1;
+	   }
+
+	   GHB[rear].addr = addr ;
+	   GHB[rear].next_ptr = next_ptr;
+	   return rear; //Returning the index where address was successfully inserted
+	}
+
+
+	int deleteFromGHB() {
+	   if (front == -1) {
+	      //Return -1 indication that deletion from queue has failed
+	      return -1;
+	   }
+	   
+	   if (front == rear) {
+	      front = -1;
+	      rear = -1;
+	   } else {
+	      if (front == n - 1)
+	      front = 0;
+	      else
+	      front = front + 1;
+	   }
+	   return 1; //Indicating that deletion from queue is successfull
+	}
+
+	int INDEX_TABLE[NUM_ENTRIES];
+
+	void CACHE::l2c_prefetcher_initialize() 
+	{
+	    cout << "CPU " << cpu << " L2C GHB stride prefetcher" << endl;
+	    // Initialize all IT as -1.
+	    // Initialize all GHB pointers as -1
+	    // Basically initialize all invalid pointers as -1
+
+	    for(int i=0;i <NUM_ENTRIES; i++)
+	    {
+	    	INDEX_TABLE[i] = -1;
+	    }
+
+	    for(int i=0;i <NUM_ENTRIES; i++)
+	    {
+	    	GHB[i].addr = 0;
+	    	GHB[i].next_ptr = -1;
+	    }
+	}
+
+	uint32_t CACHE::l2c_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit, uint8_t type, uint32_t metadata_in)
+	{
+		int64_t pc_index;
+		pc_index = ip & 0x00000000000000FF; //Use the least significant 8 bits to compute the PC address.
+
+		int GHB_ptr_0, GHB_ptr_1, GHB_ptr_2;
+
+		GHB_ptr_0 = INDEX_TABLE[pc_index];
+		
+		int64_t stride1 = 0;
+		int64_t stride2 = 0;
+		uint64_t addr1, addr2, addr3;
+
+		if(GHB_ptr_0 != -1){
+			addr1 = GHB[GHB_ptr_0].addr; // Get the last 3 addresses accessed by this PC using the GHB pointer values
+			GHB_ptr_1 = GHB[GHB_ptr_0].next_ptr;
+			
+			if(GHB_ptr_1 != -1){
+				addr2 = GHB[GHB_ptr_1].addr;
+				GHB_ptr_2 = GHB[GHB_ptr_1].next_ptr;
+				if(GHB_ptr_2 != -1){
+					addr3 = GHB[GHB_ptr_2].addr;
+
+				    if (addr2 > addr1) // Computing difference between unsigned integers
+				        stride1 = addr2 - addr1;
+				    else {
+				        stride1 = addr1 - addr2;
+				        stride1 *= -1;
+				    }
+
+				    if (addr3 > addr2) // Computing difference between unsigned integers
+				        stride2 = addr3 - addr2;
+				    else {
+				        stride2 = addr2 - addr3;
+				        stride2 *= -1;
+				    }
+
+					if((stride1 == stride2) && (stride1!=0)){
+						stride1 = stride1 *PREFETCH_LOOKAHEAD;
+						for(int i = 0; i < PREFETCH_DEGREE; i++){
+					       uint64_t pf_address = (addr + (stride1*(i))) << LOG2_BLOCK_SIZE;
+			            	// only issue a prefetch if the prefetch address is in the same 4 KB page as the current demand access address
+			            	if ((pf_address >> LOG2_PAGE_SIZE) != (addr >> LOG2_PAGE_SIZE))
+			                	break;
+				      		prefetch_line(ip, addr, pf_address, FILL_L2, 0);
+						}
+					}
+				}
+			}
+		}
+
+		// Update the Index table entries with the new GHB entry pointer
+		int prev_GHB_ptr = INDEX_TABLE[pc_index];
+		int new_ptr = insertToGHB(prev_GHB_ptr, addr);
+		if ( new_ptr == -1)
+			{
+				deleteFromGHB();
+				new_ptr = insertToGHB(prev_GHB_ptr, addr);
+			}
+
+		INDEX_TABLE[pc_index] = new_ptr;
+	    return metadata_in;
+	}
+
+
+	uint32_t CACHE::l2c_prefetcher_cache_fill(uint64_t addr, uint32_t set, uint32_t way, uint8_t prefetch, uint64_t evicted_addr, uint32_t metadata_in)
+	{
+	  return metadata_in;
+	}
+
+	void CACHE::l2c_prefetcher_final_stats()
+	{
+	    cout << "CPU " << cpu << " L2C GHB stride prefetcher final stats" << endl;
+	}
+
+
+
+
+/*
+		Get values using the function prefetcher_feedback
+		Update the GHB parameters which decide what to prefetch
+		How do I read that 1000 instructions have passed?
+		You need to modify MSHR.SIZE . Its part of ip_stride.l2c_pref to check usage.
+		
+
+
+
+		Add a bit pref-bit to each tag store entry in the L2 cache
+		When a prefetched block is inserted into the cache, the pref-bit associated to that block is set
+		Prefetcher accuracy is tracked using two hardware counters: pref-total: tracks the number of prefetches sent to memory. This should be easy to find.
+		used-total: track the number of useful prefetches.
+			When an L2 cache block that has the prefetch bit set is accessed by a demand request, the pref-bit is reset and the used-total is incremented
+			How can we distinguish between a demand request v/s a prefetch request??
+
+
+		Prefetch lateness: 
+						MSHR keeps track of all in-flight memory requests
+						Before allocating an MSHR entry, the MSHR checks if the requested cache block is being serviced by an earlier memory request
+						Each entry in the MSHR has a pref-bit which indicates that the memory request was generated by the prefetcher
+						A prefetch request is late if a demand request for the prefetched address is generated while the prefetch request is in the MSHR waiting for the main memory.
+						Hardware counter late-total to keep track of such late prefetches. 
+						If a demand request hits an MSHR entry that has its pref-bit set, the late total counter is incremented and the prefetch bit associated with that entry is reset.
+						The lateness metric is computed by taking the ratio of late-total to total-used
+						
+
+
+		//Reading number of retired instructions?? some piazza post mentions this
+
+
+*/
+
+	
