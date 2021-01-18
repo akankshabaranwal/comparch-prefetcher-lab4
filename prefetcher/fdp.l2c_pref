@@ -1,4 +1,5 @@
 	#include "cache.h"
+	#include "ooo_cpu.h"
 
 	#define PREFETCH_DEGREE 4
 	#define PREFETCH_LOOKAHEAD 4
@@ -154,6 +155,7 @@
 	void CACHE::l2c_prefetcher_final_stats()
 	{
 	    cout << "CPU " << cpu << " L2C GHB stride prefetcher final stats" << endl;
+	    cout << "" << ooo_cpu[cpu].num_retired <<endl;
 	}
 
 
@@ -162,9 +164,11 @@
 /*
 		Get values using the function prefetcher_feedback
 		Update the GHB parameters which decide what to prefetch
-		How do I read that 1000 instructions have passed?
-		You need to modify MSHR.SIZE . Its part of ip_stride.l2c_pref to check usage.
-		
+		How do I read that 1000 instructions have passed? can be done using num_retired.
+
+		We need to update prefetch distance. In GHB prefetch distance is given by ld.
+		Since d will be determined by the stride, we need to fix ld appropriately, so l will the parameter which varies I think
+
 
 
 
@@ -183,13 +187,6 @@
 						A prefetch request is late if a demand request for the prefetched address is generated while the prefetch request is in the MSHR waiting for the main memory.
 						Hardware counter late-total to keep track of such late prefetches. 
 						If a demand request hits an MSHR entry that has its pref-bit set, the late total counter is incremented and the prefetch bit associated with that entry is reset.
-						The lateness metric is computed by taking the ratio of late-total to total-used
-						
-
-
-		//Reading number of retired instructions?? some piazza post mentions this
-
+						The lateness metric is computed by taking the ratio of late-total to total-used						
 
 */
-
-	
