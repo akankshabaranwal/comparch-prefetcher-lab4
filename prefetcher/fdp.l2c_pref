@@ -82,6 +82,8 @@
 	    }
 	}
 
+	int CounterValue, CounterValueBegin, CounterValueDuringInterval;
+
 	uint32_t CACHE::l2c_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit, uint8_t type, uint32_t metadata_in)
 	{
 		int64_t pc_index;
@@ -94,6 +96,31 @@
 		int64_t stride1 = 0;
 		int64_t stride2 = 0;
 		uint64_t addr1, addr2, addr3;
+
+
+		if(ooo_cpu[cpu].num_retired % 1000 == 0) // TODO: Need to fix this appropriately
+		{	
+
+			CounterValue =  (CounterValueBegin + CounterValueDuringInterval)/2;
+			CounterValueDuringInterval = 0;
+			CounterValueBegin = CounterValue;
+			//Depending on the CounterValue modify the parameters of GHB appropriately.
+			
+		}
+
+		uint64_t pref_gen, pref_fill, pref_used, pref_late;
+		prefetcher_feedback(pref_gen, pref_fill, pref_used, pref_late); 
+		uint64_t pref_accuracy, pref_lateness;
+		pref_accuracy = pref_used/pref_gen; 
+		pref_lateness = pref_late/pref_used; // TODO: Handle for case when denominator is 0.
+		
+		if((pref_accuracy > 0.75) && (pref_lateness > 0.01))
+			CounterValueDuringInterval++;
+		else if((pref_accuracy <0.75) && (pref_accuracy >0.40) && (pref_lateness>0.01))
+			CounterValueDuringInterval++;
+		else if((pref_accuracy <0.40) && (pref_lateness>0.01))
+			CounterValueDuringInterval--;
+
 
 		if(GHB_ptr_0 != -1){
 			addr1 = GHB[GHB_ptr_0].addr; // Get the last 3 addresses accessed by this PC using the GHB pointer values
