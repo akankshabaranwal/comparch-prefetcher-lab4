@@ -83,6 +83,10 @@
 	}
 
 	int CounterValue, CounterValueBegin, CounterValueDuringInterval;
+	int64_t pref_distance=2;
+	int64_t pref_degree=16;
+	uint64_t old_retired = 0;
+
 
 	uint32_t CACHE::l2c_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit, uint8_t type, uint32_t metadata_in)
 	{
@@ -96,31 +100,64 @@
 		int64_t stride1 = 0;
 		int64_t stride2 = 0;
 		uint64_t addr1, addr2, addr3;
+		uint64_t addr_pref_start;
 
 
-		if(ooo_cpu[cpu].num_retired % 1000 == 0) // TODO: Need to fix this appropriately
+		if((ooo_cpu[cpu].num_retired - old_retired) >=1000)
 		{	
 
+			old_retired = ooo_cpu[cpu].num_retired;
 			CounterValue =  (CounterValueBegin + CounterValueDuringInterval)/2;
 			CounterValueDuringInterval = 0;
 			CounterValueBegin = CounterValue;
-			//Depending on the CounterValue modify the parameters of GHB appropriately.
-			
+			//TODO Handle for cases when countervalue is becoming less than 0
+
+			if(CounterValue == 1)
+			{
+				pref_distance = 4;
+				pref_degree = 1;
+			} 
+			else if(CounterValue == 2)
+			{
+				pref_distance = 8;
+				pref_degree = 1;
+			}
+			else if(CounterValue == 2)
+			{
+				pref_distance = 16;
+				pref_degree = 2;
+			}
+			else if(CounterValue == 2)
+			{
+				pref_distance = 32;
+				pref_degree = 4;
+			}
+			else if(CounterValue == 2)
+			{
+				pref_distance = 48;
+				pref_degree = 4;
+			}
+
 		}
 
 		uint64_t pref_gen, pref_fill, pref_used, pref_late;
 		prefetcher_feedback(pref_gen, pref_fill, pref_used, pref_late); 
 		uint64_t pref_accuracy, pref_lateness;
-		pref_accuracy = pref_used/pref_gen; 
-		pref_lateness = pref_late/pref_used; // TODO: Handle for case when denominator is 0.
-		
-		if((pref_accuracy > 0.75) && (pref_lateness > 0.01))
-			CounterValueDuringInterval++;
-		else if((pref_accuracy <0.75) && (pref_accuracy >0.40) && (pref_lateness>0.01))
-			CounterValueDuringInterval++;
-		else if((pref_accuracy <0.40) && (pref_lateness>0.01))
-			CounterValueDuringInterval--;
 
+		if ((pref_gen !=0) && (pref_used !=0))
+		{
+			pref_accuracy = pref_used/pref_gen;
+			pref_lateness = pref_late/pref_used;
+
+			// Code to increment or decrement counter values appropriately
+			if((pref_accuracy > 0.75) && (pref_lateness > 0.01))
+				CounterValueDuringInterval++;
+			else if((pref_accuracy <0.75) && (pref_accuracy >0.40) && (pref_lateness>0.01))
+				CounterValueDuringInterval++;
+			else if((pref_accuracy <0.40) && (pref_lateness>0.01))
+				CounterValueDuringInterval--;
+
+		}
 
 		if(GHB_ptr_0 != -1){
 			addr1 = GHB[GHB_ptr_0].addr; // Get the last 3 addresses accessed by this PC using the GHB pointer values
@@ -147,9 +184,10 @@
 				    }
 
 					if((stride1 == stride2) && (stride1!=0)){
-						stride1 = stride1 *PREFETCH_LOOKAHEAD;
-						for(int i = 0; i < PREFETCH_DEGREE; i++){
-					       uint64_t pf_address = (addr + (stride1*(i))) << LOG2_BLOCK_SIZE;
+						//stride1 = stride1 *PREFETCH_LOOKAHEAD;
+						addr_pref_start = (addr + pref_distance) << LOG2_BLOCK_SIZE;
+						for(int i = 0; i < pref_degree; i++){
+					       uint64_t pf_address = (addr_pref_start + (stride1*(i))) << LOG2_BLOCK_SIZE;
 			            	// only issue a prefetch if the prefetch address is in the same 4 KB page as the current demand access address
 			            	if ((pf_address >> LOG2_PAGE_SIZE) != (addr >> LOG2_PAGE_SIZE))
 			                	break;
