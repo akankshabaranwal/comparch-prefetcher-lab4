@@ -109,7 +109,7 @@
 			CounterValueDuringInterval = 0;
 			CounterValueBegin = CounterValue;
 
-			if(CounterValue == 1)
+			if(CounterValue <= 1)
 			{
 				pref_distance = 4;
 				pref_degree = 1;
@@ -129,7 +129,7 @@
 				pref_distance = 32;
 				pref_degree = 4;
 			}
-			else if(CounterValue == 5)
+			else if(CounterValue >= 5)
 			{
 				pref_distance = 48;
 				pref_degree = 4;
@@ -146,13 +146,12 @@
 			pref_lateness = pref_late/pref_used;
 
 			// Code to increment or decrement counter values appropriately
-			if((pref_accuracy > 0.75) && (pref_lateness > 0.01))
+			if((pref_accuracy >= 0.75) && (pref_lateness >= 0.01))
 				CounterValueDuringInterval++;
-			else if((pref_accuracy <0.75) && (pref_accuracy >0.40) && (pref_lateness>0.01))
+			else if((pref_accuracy <0.75) && (pref_accuracy >0.40) && (pref_lateness>=0.01))
 				CounterValueDuringInterval++;
-			else if((pref_accuracy <0.40) && (pref_lateness>0.01))
+			else if((pref_accuracy <=0.40) && (pref_lateness>0.01))
 				CounterValueDuringInterval--;
-
 		}
 
 		if(GHB_ptr_0 != -1){
@@ -208,7 +207,6 @@
 		INDEX_TABLE[pc_index] = new_ptr;
 	    return metadata_in;
 	}
-
 
 	uint32_t CACHE::l2c_prefetcher_cache_fill(uint64_t addr, uint32_t set, uint32_t way, uint8_t prefetch, uint64_t evicted_addr, uint32_t metadata_in)
 	{
