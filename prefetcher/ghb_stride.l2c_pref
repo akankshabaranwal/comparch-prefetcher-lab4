@@ -122,10 +122,7 @@
 						stride1 = stride1 *PREFETCH_LOOKAHEAD;
 						for(int i = 0; i < PREFETCH_DEGREE; i++){
 					       uint64_t pf_address = ((addr>>LOG2_BLOCK_SIZE) + (stride1*(i))) << LOG2_BLOCK_SIZE;
-			            	// only issue a prefetch if the prefetch address is in the same 4 KB page as the current demand access address
-			            	if ((pf_address >> LOG2_PAGE_SIZE) != (addr >> LOG2_PAGE_SIZE))
-			                	break;
-				      		prefetch_line(ip, addr, pf_address, FILL_L2, 0);
+				      	   prefetch_line(ip, addr, pf_address, FILL_L2, 0);
 						}
 					}
 				}
@@ -155,44 +152,3 @@
 	{
 	    cout << "CPU " << cpu << " L2C GHB stride prefetcher final stats" << endl;
 	}
-
-
-	/*
-	Index table
-	A table that is indexed by program properties, like Program Counter
-	It stores a pointer to a GHB entry
-	Size is 256 entries
-	Contain a tag for matching, Single pointer into the GHB entry
-
-	Global history buffer
-	A circular queue that stores time ordered sequence of the observed cache line addresses. 
-	Each GHB entry also stores a pointer called prev_ptr that points to the last cacheline access that has the same IT index.
-	By traversing prev_ptr, once can get the temporal sequence of cacheline addresses that points to the same IT entry
-	Size is 256 entries
-
-	Stride prefetching algorithm. This logic will go in the l2c_prefetcher_operate part
-	For each L2 cache access (both hit and miss) the algorithm uses the PC of the access to:
-		1) Index into the IT
-		2) Insert the cacheline address into the GHB
-
-	Using PC and link pointers in the GHB entries, the algorithm retrieves the sequence of last 3 addresses by this PC that accessed the L2 cache
-	The stride is computed by taking the difference between two consecutive addresses in the sequence.
-		1) If two strides match (say d) the prefetcher simply issues prefetch requests to cachelines A + 4d, A+5d, A+6d, A+7d. (correction on piazza)
-		This is same as they do in the paper.
-	*/
-
-		// This function is called for each L2 cache lookup operation. It is called for both L2 load and store accesses that can either hit or miss in the cache.
-		// Type and metadata_in helps in identifying the type of lookup.
-		// We want to find patters only in L2 load accessess. addr gives the cacheline aligned address and ip gives the PC of the memory access.
-		// Use ip to index into the IT. We need to use some particular bits of the ip to index properly for the 256 entries.
-		// The entries in IT contain pointers into the GHB. We first need to check if there's a hit in the index table. Only then do we access the GHB etc. 
-		// Maybe this IT would be similar to the tracker in ip_stride prefetcher.
-		// Insert the addr into GHB. It is supposed to hold the n most recent L2 *miss* address. Each entry has a global miss address and a link pointer. // For start consider all L2 accesses and not just misses. We will update this later.
-		// The link pointers are used to chain the GHB entries into address lists.
-		// Using PC and link pointers in the GHB entries, the algorithm retrieves the sequence of last 3 addresses by this PC that accessed the L2 cache.
-		// Stride is computed by taking the difference between two consecutive addresses in the sequence. If two strides match, the prefetcher issues request to the next n cachelines.
-		// Simple state machine maintains the GHB address lists and coordinates the 
-		// From paper:
-		// Using the PC of a load instruction as the index into the index table, the address list created is the sequence of addresses for a given PC.
-		// The load strides can be calculated by computing the differences between consecutive entries in the address list.
-		// If a constant stride is detected then we prefetch a set of addresses.

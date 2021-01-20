@@ -1,10 +1,7 @@
 	#include "cache.h"
 	#include "ooo_cpu.h"
 
-	#define PREFETCH_DEGREE 4
-	#define PREFETCH_LOOKAHEAD 4
 	#define NUM_ENTRIES 256
-
 	
 	class GLOBAL_HISTORY_BUFFER {
   	public:
@@ -41,7 +38,6 @@
 	   GHB[rear].next_ptr = next_ptr;
 	   return rear; //Returning the index where address was successfully inserted
 	}
-
 
 	int deleteFromGHB() {
 	   if (front == -1) {
@@ -100,7 +96,6 @@
 		int64_t stride2 = 0;
 		uint64_t addr1, addr2, addr3;
 		uint64_t addr_pref_start;
-
 
 		if((ooo_cpu[cpu].num_retired - old_retired) >=1000)
 		{	
@@ -177,7 +172,6 @@
 				        stride2 *= -1;
 				    }
 
-				    //TODO: Update the GHB prefetcher appropriately
 					if((stride1 == stride2) && (stride1!=0)){
 						for(int i = 0; i < pref_degree; i++){
 					       
