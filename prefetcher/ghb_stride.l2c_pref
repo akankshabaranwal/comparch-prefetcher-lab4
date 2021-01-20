@@ -119,9 +119,8 @@
 				    }
 
 					if((stride1 == stride2) && (stride1!=0)){
-						stride1 = stride1 *PREFETCH_LOOKAHEAD;
 						for(int i = 0; i < PREFETCH_DEGREE; i++){
-					       uint64_t pf_address = ((addr>>LOG2_BLOCK_SIZE) + (stride1*(i))) << LOG2_BLOCK_SIZE;
+					       uint64_t pf_address = ((addr>>LOG2_BLOCK_SIZE) + (stride1*(i+PREFETCH_LOOKAHEAD))) << LOG2_BLOCK_SIZE;
 				      	   prefetch_line(ip, addr, pf_address, FILL_L2, 0);
 						}
 					}
