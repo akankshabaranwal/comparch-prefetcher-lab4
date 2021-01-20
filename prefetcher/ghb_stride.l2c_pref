@@ -121,7 +121,7 @@
 					if((stride1 == stride2) && (stride1!=0)){
 						stride1 = stride1 *PREFETCH_LOOKAHEAD;
 						for(int i = 0; i < PREFETCH_DEGREE; i++){
-					       uint64_t pf_address = (addr + (stride1*(i))) << LOG2_BLOCK_SIZE;
+					       uint64_t pf_address = ((addr>>LOG2_BLOCK_SIZE) + (stride1*(i))) << LOG2_BLOCK_SIZE;
 			            	// only issue a prefetch if the prefetch address is in the same 4 KB page as the current demand access address
 			            	if ((pf_address >> LOG2_PAGE_SIZE) != (addr >> LOG2_PAGE_SIZE))
 			                	break;
